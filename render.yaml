@@ -3,7 +3,7 @@ services:
     name: Manga-Recommendation-server
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements_nover.txt
     startCommand: python app.py
     envVars:
       - key: PYTHON_VERSION
