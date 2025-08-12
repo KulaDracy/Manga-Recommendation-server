@@ -17,7 +17,7 @@ jobs:
       - name: Zip source code
         run: zip -r source_code.zip .
       - name: Upload source code artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: source-code
           path: source_code.zip
