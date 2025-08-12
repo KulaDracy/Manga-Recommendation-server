@@ -28,7 +28,3 @@ jobs:
 
       - name: Run tests
         run: pytest || echo "No tests found"
-
-      - name: Deploy to Render
-        if: github.ref == 'refs/heads/main'
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
