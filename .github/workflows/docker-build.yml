@@ -16,11 +16,17 @@ jobs:
       # 2. Zip source code artifact
       - name: Zip source code
         run: zip -r source_code.zip .
-      - name: Upload source code artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: source-code
-          path: source_code.zip
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Upload to Google Drive
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          rclone copy source_code.zip gdrive:/github-artifacts/manga-server --progress
       # 4. Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
