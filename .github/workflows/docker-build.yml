@@ -32,7 +32,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/manga-server:latest
+          tags: kuladracymoonlight/manga-server:latest
 
       # 5. Build thêm bản để tạo file .tar artifact
       - name: Build image tar
@@ -41,7 +41,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
-          tags: ${{ secrets.DOCKER_USERNAME }}/manga-server:latest
+          tags: kuladracymoonlight/manga-server:latest
           outputs: type=docker,dest=./manga-server-image.tar
 
       # 6. Cài rclone
