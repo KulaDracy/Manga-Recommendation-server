@@ -38,12 +38,16 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # 6. Build and push image to Docker Hub
-      - name: Build and push
+      - name: Build and save image as tar
         uses: docker/build-push-action@v5
         with:
-          push: true
-          load: true
-          tags: kuladracymoonlight/manga-server:latest
+          context: .
+          file: ./Dockerfile
+          tags: youruser/manga-server:latest
+          push: false
+          load: false
+          outputs: type=docker,dest=manga-server-image.tar
+
 
       # 7. Save Docker image ra file tar (artifact riêng)
       - name: Save Docker image
