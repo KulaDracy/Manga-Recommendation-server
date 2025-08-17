@@ -14,55 +14,56 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Login Docker Hub
+      # 2. Chuẩn bị env variables (tùy bạn define thêm vào đây)
+      - name: Save env variables
+        run: |
+          echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" > env_vars.txt
+          echo "DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}" >> env_vars.txt
+          echo "COMMIT_HASH=${GITHUB_SHA::7}" >> env_vars.txt
+          echo "BRANCH_NAME=${GITHUB_REF_NAME}" >> env_vars.txt
+
+      # 3. Chuẩn bị source code (loại bỏ bớt thư mục nặng như .git, node_modules nếu có)
+      - name: Zip source code
+        run: zip -r source_code.zip . -x "*.git*" -x "node_modules/*"
+
+      # 4. Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3. Set up Docker Buildx
+      # 5. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4. Build and push image to Docker Hub
+      # 6. Build and push image to Docker Hub
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           push: true
           tags: kuladracymoonlight/manga-server:latest
 
-      # 5. Save Docker image to tar file
+      # 7. Save Docker image ra file tar (artifact riêng)
       - name: Save Docker image
-        run: |
-          docker pull kuladracymoonlight/manga-server:latest
-          docker save kuladracymoonlight/manga-server:latest -o manga-server-image.tar
+        run: docker save kuladracymoonlight/manga-server:latest -o manga-server-image.tar
 
-      # 6. Export environment variables
-      - name: Save environment variables
-        run: |
-          echo "APP_ENV=production" > env_vars.txt
-          echo "VERSION=${GITHUB_SHA::7}" >> env_vars.txt
-          # Nếu muốn dump tất cả env thì dùng: printenv > env_vars.txt
-
-      # 7. Zip all artifacts (source + image + env)
-      - name: Zip all artifacts
-        run: |
-          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-          COMMIT_HASH=${GITHUB_SHA::7}
-          zip -r artifacts_${TIMESTAMP}_${COMMIT_HASH}.zip . manga-server-image.tar env_vars.txt
-
-      # 8. Install rclone
+      # 8. Cài rclone
       - name: Install rclone
-        run: curl https://rclone.org/install.sh | sudo bash
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
 
-      # 9. Upload artifacts to Google Drive
-      - name: Upload to Google Drive
+      # 9. Upload artifacts lên Google Drive (từng file riêng)
+      - name: Upload artifacts to Google Drive
         env:
           RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
           echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           COMMIT_HASH=${GITHUB_SHA::7}
-          rclone copy artifacts_${TIMESTAMP}_${COMMIT_HASH}.zip gdrive:/github-artifacts/manga-server/ --progress
+
+          rclone copy source_code.zip gdrive:/github-artifacts/manga-server/source_code_${TIMESTAMP}_${COMMIT_HASH}.zip --progress
+          rclone copy manga-server-image.tar gdrive:/github-artifacts/manga-server/manga-server-image_${TIMESTAMP}_${COMMIT_HASH}.tar --progress
+          rclone copy env_vars.txt gdrive:/github-artifacts/manga-server/env_vars_${TIMESTAMP}_${COMMIT_HASH}.txt --progress
