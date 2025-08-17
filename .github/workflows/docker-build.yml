@@ -1,4 +1,4 @@
-name: Build & Push Docker Image + Artifact Backup
+name: Build & Push Docker Image + Save Artifact
 
 on:
   push:
@@ -14,19 +14,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Login Docker Hub
+      # 2. Zip source code and upload
+      - name: Zip source code
+        run: zip -r source_code.zip .
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+      - name: Upload source to Google Drive
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          COMMIT_HASH=${GITHUB_SHA::7}
+          rclone copy source_code.zip gdrive:/github-artifacts/manga-server/source_${TIMESTAMP}_${COMMIT_HASH}.zip --progress
+
+      # 3. Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3. Set up Docker Buildx
+      # 4. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4. Build & Push image lên Docker Hub
-      - name: Build and push image
+      # 5. Build and push image to Docker Hub
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -34,35 +49,19 @@ jobs:
           push: true
           tags: kuladracymoonlight/manga-server:latest
 
-      # 5. Build thêm bản để tạo file .tar artifact
-      - name: Build image tar
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: kuladracymoonlight/manga-server:latest
-          outputs: type=docker,dest=./manga-server-image.tar
-
-      # 6. Cài rclone
-      - name: Install rclone
-        run: |
-          curl https://rclone.org/install.sh | sudo bash
-
-      # 7. Chia nhỏ file tar
-      - name: Split image tar
-        run: |
-          split -b 1500M manga-server-image.tar manga_image_part_
-          ls -lh
-
-      # 8. Upload artifact lên Google Drive
-      - name: Upload to Google Drive
+      # 6. Save image as tar + compress + upload to Google Drive
+      - name: Export and upload image
         env:
           RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
         run: |
           mkdir -p ~/.config/rclone
           echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-          for f in manga_image_part_*; do
-            rclone copy "$f" gdrive:/github-artifacts/manga-server/$TIMESTAMP/ --progress
-          done
+          COMMIT_HASH=${GITHUB_SHA::7}
+
+          echo "Saving docker image..."
+          docker pull kuladracymoonlight/manga-server:latest
+          docker save kuladracymoonlight/manga-server:latest | xz -9 -T0 > manga-server_${TIMESTAMP}_${COMMIT_HASH}.tar.xz
+
+          echo "Uploading to Google Drive..."
+          rclone copy manga-server_${TIMESTAMP}_${COMMIT_HASH}.tar.xz gdrive:/github-artifacts/manga-server/ --progress
