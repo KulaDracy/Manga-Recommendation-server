@@ -13,13 +13,43 @@ jobs:
       # 1. Checkout code
       - name: Checkout
         uses: actions/checkout@v4
-      # 2. Zip source code artifact
-      - name: Zip source code
-        run: zip -r source_code.zip .
-      - name: Install rclone
+       # 2. Run SonarQube Scan
+      - name: SonarQube Scan
+        uses: sonarsource/sonarcloud-github-action@master
+        with:
+          args: >
+            -Dsonar.projectKey=manga-server
+            -Dsonar.sources=.
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+      # 3. Save environment variables to file
+      - name: Export environment variables
         run: |
-          curl https://rclone.org/install.sh | sudo bash
-
+          echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> env.list
+          echo "DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}" >> env.list
+          echo "SONAR_HOST_URL=${{ secrets.SONAR_HOST_URL }}" >> env.list
+          echo "SONAR_TOKEN=${{ secrets.SONAR_TOKEN }}" >> env.list
+          echo "GIT_COMMIT=${GITHUB_SHA}" >> env.list
+          echo "BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S")" >> env.list
+        # 4. Build Docker image locally (besides pushing)
+      - name: Build Docker image
+        run: |
+          docker build -t manga-server:latest .
+        # 5. Save Docker image as tar
+      - name: Save Docker image
+        run: |
+          docker save manga-server:latest -o docker_image.tar
+        # 6. Create artifact zip (src + env + image)
+      - name: Package artifact
+        run: |
+          mkdir artifact
+          cp -r . artifact/source_code
+          cp env.list artifact/
+          mv docker_image.tar artifact/
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          COMMIT_HASH=${GITHUB_SHA::7}
+          zip -r artifact_${TIMESTAMP}_${COMMIT_HASH}.zip artifact
+        # 7. Upload artifact to Google Drive
       - name: Upload to Google Drive
         env:
           RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
@@ -29,16 +59,16 @@ jobs:
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           COMMIT_HASH=${GITHUB_SHA::7}
           rclone copy source_code.zip gdrive:/github-artifacts/manga-server/source_code_${TIMESTAMP}_${COMMIT_HASH}.zip --progress
-      # 4. Login Docker Hub
+      # 8. Push image to Docker Hub (as before)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      # 5. Set up Docker Buildx
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      # 6. Build and push image to Docker Hub
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
