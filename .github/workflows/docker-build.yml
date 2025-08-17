@@ -42,6 +42,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: true
+          load: true
           tags: kuladracymoonlight/manga-server:latest
 
       # 7. Save Docker image ra file tar (artifact riêng)
